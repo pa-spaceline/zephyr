@@ -22,10 +22,27 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(gnss_nmea_generic, CONFIG_GNSS_LOG_LEVEL);
 
-#define UART_RX_BUF_SZ (256 + IS_ENABLED(CONFIG_GNSS_SATELLITES) * 512)
+/* Bumped from the original 256 (+512 more if GNSS_SATELLITES): even with
+ * the chat-layer buffers below increased, "modem_backend_uart_async:
+ * Receive buffer overrun" was still occasionally observed - a lower-level
+ * overrun (raw UART bytes dropped before NMEA parsing even runs), separate
+ * from the chat-layer overruns those buffers address. Same fix, one layer
+ * down: this module's burst rate needs more headroom than the original
+ * single-constellation-oriented default.
+ */
+#define UART_RX_BUF_SZ (1024 + IS_ENABLED(CONFIG_GNSS_SATELLITES) * 512)
 #define UART_TX_BUF_SZ 64
-#define CHAT_RECV_BUF_SZ 256
-#define CHAT_ARGV_SZ 32
+/* Bumped from the original 256/32: a real multi-constellation M10 module
+ * was seen continuously hitting "argv buffer overrun" and "receive buffer
+ * overrun" warnings with the original sizes - likely combined/longer
+ * GSV-style satellite sentences (GPS+GLONASS+Galileo etc.) exceeding what
+ * a single-constellation-oriented default was sized for. 512/64 reduced
+ * the overrun rate substantially but didn't eliminate it - some sentence
+ * still exceeds that occasionally. Going more generous to comfortably
+ * cover worst-case combined-constellation sentence lengths.
+ */
+#define CHAT_RECV_BUF_SZ 1024
+#define CHAT_ARGV_SZ 128
 
 struct gnss_nmea_generic_config {
 	const struct device *uart;

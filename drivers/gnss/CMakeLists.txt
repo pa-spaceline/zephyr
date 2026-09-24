@@ -14,4 +14,7 @@ zephyr_library_sources_ifdef(CONFIG_GNSS_U_BLOX_F9P gnss_u_blox_f9p.c
 						    gnss_ubx_common.c)
 zephyr_library_sources_ifdef(CONFIG_GNSS_U_BLOX_M8 gnss_u_blox_m8.c
 						   gnss_ubx_common.c)
+zephyr_library_sources_ifdef(CONFIG_GNSS_U_BLOX_M10 gnss_u_blox_m10.c
+						    gnss_ubx_common.c
+						    gnss_u_blox_iface.c)
 zephyr_library_sources_ifdef(CONFIG_GNSS_LUATOS_AIR530Z gnss_luatos_air530z.c)

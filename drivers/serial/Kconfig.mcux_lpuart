@@ -14,6 +14,24 @@ config UART_MCUX_LPUART
 
 if UART_MCUX_LPUART
 
+config UART_RETRY_TIMES
+	int "NXP HAL UART blocking-wait retry count"
+	default 1000000
+	help
+	  Bounds the busy-wait loops inside NXP's MCUX HAL LPUART driver
+	  (e.g. LPUART_Deinit() waiting on the Transmit Complete flag) that
+	  otherwise spin forever - the HAL's own fsl_lpuart.h falls back to
+	  0 when this isn't defined, and its own comment says "0 means keep
+	  waiting until the flag is assert/deassert", i.e. no timeout at
+	  all. Discovered via a genuine full-system hang: any driver that
+	  reconfigures a LPUART's baud rate at runtime (selects
+	  UART_USE_RUNTIME_CONFIGURE - e.g. GNSS_U_BLOX_M8/M10) calls
+	  mcux_lpuart_configure(), which calls LPUART_Deinit(), which hung
+	  forever with zero error output the moment the Transmit Complete
+	  flag didn't set promptly for a GPS module that otherwise works
+	  fine with other firmware on the same physical wiring - a genuine
+	  driver-level missing-timeout bug, not a hardware/wiring fault.
+
 config UART_MCUX_LPUART_ISR_SUPPORT
 	bool
 	default y if UART_INTERRUPT_DRIVEN || PM || UART_ASYNC_API

@@ -284,8 +284,21 @@ static inline int configure_baudrate(const struct device *dev)
 		.mode = UBX_CFG_PRT_MODE_CHAR_LEN(UBX_CFG_PRT_PORT_MODE_CHAR_LEN_8) |
 			UBX_CFG_PRT_MODE_PARITY(UBX_CFG_PRT_PORT_MODE_PARITY_NONE) |
 			UBX_CFG_PRT_MODE_STOP_BITS(UBX_CFG_PRT_PORT_MODE_STOP_BITS_1),
+		/* out_proto_mask intentionally NMEA, not UBX: restores a fix
+		 * that was silently dropped by a later refactor (see upstream
+		 * commit 7512eb0b65a1, "drivers: fix support for U-Blox M10
+		 * modules with M8 driver" vs. the subsequent 94a7f028efa
+		 * refactor that reverted this exact line back to UBX). The
+		 * M10 interleaves UBX and NMEA output in a way that confuses
+		 * this driver's parser and drops the message following every
+		 * UBX block - the driver doesn't actually parse UBX blocks
+		 * during normal operation anyway, so disabling UBX output
+		 * (NMEA only) avoids the interleaving problem entirely.
+		 * in_proto_mask stays UBX since we still need to *send* UBX
+		 * config commands to the module.
+		 */
 		.in_proto_mask = UBX_CFG_PRT_PROTO_MASK_UBX,
-		.out_proto_mask = UBX_CFG_PRT_PROTO_MASK_UBX,
+		.out_proto_mask = UBX_CFG_PRT_PROTO_MASK_NMEA,
 	};
 	(void)ubx_m8_msg_payload_send(dev, UBX_CLASS_ID_CFG, UBX_MSG_ID_CFG_PRT,
 				      (const uint8_t *)&port_config,
@@ -352,10 +365,15 @@ static int ubx_m8_init(const struct device *dev)
 				UBX_FRAME_SZ(version_get.payload_size),
 				(void *)&ver, sizeof(ver));
 	if (err != 0) {
-		LOG_ERR("Failed to get Modem Version info: %d", err);
-		return err;
+		/* Non-fatal: the version string is informational only, not
+		 * required for the module to actually function. Continue to
+		 * the commands that matter (fix rate, message config, start)
+		 * instead of aborting the whole init over this one query.
+		 */
+		LOG_WRN("Failed to get Modem Version info: %d (continuing anyway)", err);
+	} else {
+		LOG_INF("SW Version: %s, HW Version: %s", ver.sw_ver, ver.hw_ver);
 	}
-	LOG_INF("SW Version: %s, HW Version: %s", ver.sw_ver, ver.hw_ver);
 
 	const static struct ubx_frame stop_gnss = UBX_FRAME_CFG_RST_INITIALIZER(
 							UBX_CFG_RST_HOT_START,

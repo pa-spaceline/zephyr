@@ -588,15 +588,27 @@ static int icm42x70_fetch_from_fifo(const struct device *dev)
 	    (int_status & INT_STATUS_FIFO_FULL_INT_MASK)) {
 		uint16_t packet_count;
 
-		/* Make sure RCOSC is enabled to guarrantee FIFO read */
-		status |= inv_imu_switch_on_mclk(&data->driver);
+		/* Per the vendor SDK's own comment on this call (inv_imu_driver.c,
+		 * inv_imu_get_data_from_fifo): "For power optimization, this call
+		 * can be omitted... if gyro is enabled or accel is in LN mode"
+		 * (AN-000324) - our config has gyro enabled, so this driver's
+		 * unconditional per-cycle switch_on_mclk()/switch_off_mclk() pair
+		 * here was doing something the vendor itself documents as
+		 * unnecessary for us. That pair also toggles PWR_MGMT0.IDLE off
+		 * and back on every single 5ms cycle, each transition capable of
+		 * waiting on MCLK_RDY (bounded at 1s) - measured, via direct
+		 * k_thread_runtime_stats instrumentation, to occasionally cost
+		 * hundreds of milliseconds to multiple seconds of real stall.
+		 * Removed entirely (not moved to init - two earlier attempts at
+		 * that, in both directions, broke IMU calibration for reasons
+		 * never fully identified) rather than toggled.
+		 */
 
 		/* Read FIFO frame count */
 		status |= inv_imu_get_frame_count(&data->driver, &packet_count);
 
 		/* Check for error */
 		if (status != 0) {
-			status |= inv_imu_switch_off_mclk(&data->driver);
 			return status;
 		}
 
@@ -607,7 +619,6 @@ static int icm42x70_fetch_from_fifo(const struct device *dev)
 		/* Check for error */
 		if (status != 0) {
 			status |= inv_imu_reset_fifo(&data->driver);
-			status |= inv_imu_switch_off_mclk(&data->driver);
 			return status;
 		}
 
@@ -621,7 +632,6 @@ static int icm42x70_fetch_from_fifo(const struct device *dev)
 			/* Check for error */
 			if (status != 0) {
 				status |= inv_imu_reset_fifo(&data->driver);
-				status |= inv_imu_switch_off_mclk(&data->driver);
 				return status;
 			}
 
@@ -650,7 +660,6 @@ static int icm42x70_fetch_from_fifo(const struct device *dev)
 
 		} /* end of FIFO read for loop */
 
-		status |= inv_imu_switch_off_mclk(&data->driver);
 		if (status < 0) {
 			return status;
 		}
