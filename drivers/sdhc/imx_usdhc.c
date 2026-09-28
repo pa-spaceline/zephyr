@@ -822,9 +822,11 @@ static int imx_usdhc_get_card_present(const struct device *dev)
 	} else if (cfg->detect_gpio.port) {
 		data->card_present = gpio_pin_get_dt(&cfg->detect_gpio) > 0;
 	} else {
-		LOG_WRN("No card detection method configured, assuming card "
-			"is present");
-		data->card_present = true;
+		if (!data->card_present) {
+			LOG_WRN("No card detection method configured, assuming card "
+				"is present");
+			data->card_present = true;
+		}
 	}
 	return ((int)data->card_present);
 }
