@@ -1429,6 +1429,13 @@ static int mcux_lpuart_config_get(const struct device *dev, struct uart_config *
 static int mcux_lpuart_configure(const struct device *dev,
 				 const struct uart_config *cfg)
 {
+	/* De-assert RSRC first: in single-wire mode the transmitter can't
+	 * complete while the receiver is sourced from the TX pin, so the TC
+	 * wait below never ends. mcux_lpuart_configure_init() restores
+	 * single-wire mode afterwards.
+	 */
+	get_base(dev)->CTRL &= ~LPUART_CTRL_RSRC_MASK;
+
 	/* Wait for Transmission Complete Flag */
 	while (!(get_base(dev)->STAT & LPUART_STAT_TC_MASK)) {
 	}
