@@ -46,11 +46,18 @@ static int ist8310_sample_fetch(const struct device *dev, enum sensor_channel ch
 	}
 
 	if ((buff[0] & STAT1_DRDY) == 0) {
-		LOG_ERR("Data not ready");
-		if (ist8310_reg_write(dev, IST8310_CONTROL_REGISTER1, CTRL1_MODE_SINGLE) < 0) {
-			LOG_ERR("failed to set single");
-			return -EIO;
-		}
+		/* Do NOT re-trigger CTRL1_MODE_SINGLE here: this device is in
+		 * single-shot mode, so a not-ready read means the conversion
+		 * already in flight (minimum ~6ms per the configured 16x
+		 * averaging) simply hasn't finished within this 20ms poll
+		 * period yet - restarting it here aborts it before it can ever
+		 * complete, making "not ready" self-sustaining (this was
+		 * happening on essentially every single poll). PX4's driver
+		 * for this same chip only re-triggers when actually starting a
+		 * new cycle (after a successful read, below), never on a
+		 * not-ready poll - just wait for the next scheduled check.
+		 */
+		LOG_DBG("Data not ready");
 		return -EIO;
 	}
 
